@@ -58,19 +58,17 @@ pip3 install flask boto3
 
 Create the Flask App (app.py)
 
+
 from flask import Flask, jsonify
 import boto3
 import os
 from botocore.exceptions import ClientError
 
 app = Flask(__name__)
-
 # Load configuration from environment variables
 BUCKET_NAME = "one2n-s3-bucket"
-
 # Initialize S3 client
 s3_client = boto3.client("s3")
-
 
 def list_s3_objects(prefix=""):
     """List objects in S3 bucket with a given prefix."""
@@ -95,17 +93,17 @@ def list_s3_objects(prefix=""):
     except Exception as e:
         return {"error": str(e)}, 500
 
-
 @app.route("/list-bucket-content", defaults={"path": ""}, methods=["GET"])
 @app.route("/list-bucket-content/<path:path>", methods=["GET"])
 def list_bucket_content(path):
     """API Endpoint to list S3 bucket contents."""
     result = list_s3_objects(prefix=path)
     return jsonify(result)
-
-
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
 
 Set Environment Variables
 
