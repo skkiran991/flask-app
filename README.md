@@ -65,29 +65,47 @@ from botocore.exceptions import ClientError
 
 app = Flask(__name__)
 
-S3_BUCKET = os.environ.get('S3_BUCKET')
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+# Load configuration from environment variables
+BUCKET_NAME = "one2n-s3-bucket"
 
-s3_client = boto3.client('s3', region_name=AWS_REGION)
+# Initialize S3 client
+s3_client = boto3.client("s3")
 
-@app.route('/list-bucket-content', defaults={'path': ''})
-@app.route('/list-bucket-content/<path:path>', methods=['GET'])
-def list_bucket_content(path):
+
+def list_s3_objects(prefix=""):
+    """List objects in S3 bucket with a given prefix."""
     try:
-        result = s3_client.list_objects_v2(Bucket=S3_BUCKET, Prefix=path, Delimiter='/')
-        contents = []
-        if 'CommonPrefixes' in result:
-            contents += [prefix['Prefix'] for prefix in result['CommonPrefixes']]
-        if 'Contents' in result:
-            contents += [obj['Key'] for obj in result['Contents']]
-        return jsonify({"content": contents})
-    except ClientError as e:
-        return jsonify({"error": str(e)}), 500
-    except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        if prefix and not prefix.endswith("/"):
+            prefix += "/"
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=prefix)
+
+        contents = []
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                key = obj["Key"]
+                if key != prefix:
+                    contents.append(key[len(prefix) :].split("/")[0])
+
+        # Remove duplicates and sort
+        contents = sorted(set(contents))
+
+        return {"content": contents}
+
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+@app.route("/list-bucket-content", defaults={"path": ""}, methods=["GET"])
+@app.route("/list-bucket-content/<path:path>", methods=["GET"])
+def list_bucket_content(path):
+    """API Endpoint to list S3 bucket contents."""
+    result = list_s3_objects(prefix=path)
+    return jsonify(result)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
 Set Environment Variables
 
@@ -95,9 +113,16 @@ echo "export S3_BUCKET=your-bucket-name" >> ~/.bashrc
 echo "export AWS_REGION=us-east-1" >> ~/.bashrc
 source ~/.bashrc
 
+Or In my case I have use it on woking terminal
+export AWS_ACCESS_KEY_ID="your access key"
+export AWS_SECRET_KEY_ID="your secret key "
+export AWS_REGION_ID="region"
+export BUCKET_NAME="Bucket name"
+
 Run the Flask Application
 
-python3 app.py &
+python3 main.py & or 
+nohup python main.py 
 
 API Usage
 
@@ -117,13 +142,19 @@ Response:
 
 {"content": []}
 
+curl http://your-ec2-ip:5000/list-bucket-content/dir2
+
+Response:
+
+{"content": ["file1", "file2"]}
+
 Troubleshooting
 
 404 Error
 
 Ensure Flask is running (ps aux | grep python).
 
-Restart Flask if necessary (pkill -f flask; python3 app.py &).
+Restart Flask if necessary (pkill -f flask; python3 main.py &).
 
 Check security group rules to allow port 5000.
 
@@ -135,9 +166,11 @@ Check environment variables are correctly set.
 
 View Flask logs for errors (tail -f flask.log).
 
-Future Improvements
+You can see terraform.tf file in code.
 
-Deploy using AWS Lambda instead of EC2.
+Another approch 
+
+Deploy using AWS Lambda with Api Gateway instead of EC2.
 
 Implement authentication for the API.
 
